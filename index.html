@@ -1,0 +1,9 @@
+<!doctype html>
+<html lang="ka"><head><meta charset="UTF-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>MovieRoom — ფილმები მეგობრებთან ერთად</title><link rel="stylesheet" href="style.css"></head>
+<body>
+<header><a class="brand" href="#/">🎬 MovieRoom</a><nav><a href="#/">მთავარი</a><a href="#/rooms">ოთახები</a></nav></header>
+<main id="app"></main>
+<div id="modal" class="modal" hidden><div class="modal-box"><button class="close" onclick="closeModal()">×</button>
+<h2>ოთახის შექმნა</h2><p id="modalMovie"></p><input id="name" placeholder="შენი სახელი"><button class="primary" id="makeRoom">შექმნა და შესვლა</button></div></div>
+<script src="/socket.io/socket.io.js"></script><script src="app.js"></script></body></html>
