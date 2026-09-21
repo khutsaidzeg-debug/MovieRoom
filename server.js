@@ -10,7 +10,7 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
-const publicPath = path.join(__dirname, "public");
+const publicPath = __dirname;
 
 app.use(express.json());
 app.use(express.static(publicPath));
