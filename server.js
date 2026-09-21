@@ -10,15 +10,18 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
-const publicPath = __dirname;
+// public საქაღალდე
+const publicPath = path.join(__dirname, "public");
 
 app.use(express.json());
 app.use(express.static(publicPath));
 
+// მთავარი გვერდი
 app.get("/", (req, res) => {
   res.sendFile(path.join(publicPath, "index.html"));
 });
 
+// Health check
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
@@ -27,6 +30,7 @@ app.get("/health", (req, res) => {
   });
 });
 
+// ოთახების მონაცემები
 const rooms = new Map();
 
 function getRoom(roomId) {
@@ -60,8 +64,10 @@ function getCurrentPosition(room) {
   return position;
 }
 
+// Socket.IO
 io.on("connection", socket => {
 
+  // ოთახში შესვლა
   socket.on("join-room", ({ roomId, name, movie }) => {
 
     roomId = String(roomId || "")
@@ -87,6 +93,7 @@ io.on("connection", socket => {
       name
     });
 
+    // თუ ოთახს ფილმი ჯერ არ აქვს
     if (movie && !room.movie) {
       room.movie = movie;
     }
@@ -109,6 +116,7 @@ io.on("connection", socket => {
     );
   });
 
+  // ფილმის შეცვლა
   socket.on("set-movie", movie => {
 
     const roomId = socket.data.roomId;
@@ -133,6 +141,7 @@ io.on("connection", socket => {
     });
   });
 
+  // Play
   socket.on("play", position => {
 
     const roomId = socket.data.roomId;
@@ -141,10 +150,9 @@ io.on("connection", socket => {
 
     const room = getRoom(roomId);
 
-    room.position =
-      Number.isFinite(Number(position))
-        ? Number(position)
-        : getCurrentPosition(room);
+    room.position = Number.isFinite(Number(position))
+      ? Number(position)
+      : getCurrentPosition(room);
 
     room.playing = true;
     room.updatedAt = Date.now();
@@ -154,6 +162,7 @@ io.on("connection", socket => {
     });
   });
 
+  // Pause
   socket.on("pause", position => {
 
     const roomId = socket.data.roomId;
@@ -162,10 +171,9 @@ io.on("connection", socket => {
 
     const room = getRoom(roomId);
 
-    room.position =
-      Number.isFinite(Number(position))
-        ? Number(position)
-        : getCurrentPosition(room);
+    room.position = Number.isFinite(Number(position))
+      ? Number(position)
+      : getCurrentPosition(room);
 
     room.playing = false;
     room.updatedAt = Date.now();
@@ -175,6 +183,7 @@ io.on("connection", socket => {
     });
   });
 
+  // Seek
   socket.on("seek", position => {
 
     const roomId = socket.data.roomId;
@@ -191,6 +200,7 @@ io.on("connection", socket => {
     });
   });
 
+  // ჩატი
   socket.on("chat-message", message => {
 
     const roomId = socket.data.roomId;
@@ -212,6 +222,7 @@ io.on("connection", socket => {
     });
   });
 
+  // მომხმარებლის გასვლა
   socket.on("disconnect", () => {
 
     const roomId = socket.data.roomId;
@@ -240,8 +251,10 @@ io.on("connection", socket => {
       rooms.delete(roomId);
     }
   });
+
 });
 
+// სერვერის გაშვება
 server.listen(PORT, HOST, () => {
   console.log(`MovieRoom running on ${HOST}:${PORT}`);
 });
