@@ -10,17 +10,15 @@ const io = new Server(server);
 const PORT = process.env.PORT || 3000;
 const HOST = "0.0.0.0";
 
-// public საქაღალდის სწორად მითითება
 const publicPath = path.join(__dirname, "public");
 
+app.use(express.json());
 app.use(express.static(publicPath));
 
-// მთავარი გვერდი
 app.get("/", (req, res) => {
   res.sendFile(path.join(publicPath, "index.html"));
 });
 
-// Health check
 app.get("/health", (req, res) => {
   res.json({
     status: "ok",
@@ -29,7 +27,6 @@ app.get("/health", (req, res) => {
   });
 });
 
-// ოთახების მონაცემები
 const rooms = new Map();
 
 function getRoom(roomId) {
@@ -53,10 +50,18 @@ function getUsers(room) {
   }));
 }
 
-// Socket.IO
+function getCurrentPosition(room) {
+  let position = room.position;
+
+  if (room.playing) {
+    position += (Date.now() - room.updatedAt) / 1000;
+  }
+
+  return position;
+}
+
 io.on("connection", socket => {
 
-  // ოთახში შესვლა
   socket.on("join-room", ({ roomId, name, movie }) => {
 
     roomId = String(roomId || "")
@@ -82,26 +87,18 @@ io.on("connection", socket => {
       name
     });
 
-    // თუ ოთახს ფილმი ჯერ არ აქვს
     if (movie && !room.movie) {
       room.movie = movie;
-    }
-
-    let currentPosition = room.position;
-
-    if (room.playing) {
-      currentPosition +=
-        (Date.now() - room.updatedAt) / 1000;
     }
 
     socket.emit("room-state", {
       movie: room.movie,
       playing: room.playing,
-      position: currentPosition,
+      position: getCurrentPosition(room),
       users: getUsers(room)
     });
 
-    socket.to(roomId).emit(
+    io.to(roomId).emit(
       "users-updated",
       getUsers(room)
     );
@@ -112,7 +109,6 @@ io.on("connection", socket => {
     );
   });
 
-  // ფილმის შეცვლა
   socket.on("set-movie", movie => {
 
     const roomId = socket.data.roomId;
@@ -121,15 +117,131 @@ io.on("connection", socket => {
 
     const room = getRoom(roomId);
 
-    room.movie = movie;
+    room.movie = movie || null;
     room.position = 0;
     room.playing = false;
     room.updatedAt = Date.now();
 
     io.to(roomId).emit(
       "movie-changed",
-      movie
+      room.movie
     );
+
+    io.to(roomId).emit("video-state", {
+      playing: false,
+      position: 0
+    });
   });
 
-  // ვიდეო
+  socket.on("play", position => {
+
+    const roomId = socket.data.roomId;
+
+    if (!roomId) return;
+
+    const room = getRoom(roomId);
+
+    room.position =
+      Number.isFinite(Number(position))
+        ? Number(position)
+        : getCurrentPosition(room);
+
+    room.playing = true;
+    room.updatedAt = Date.now();
+
+    io.to(roomId).emit("video-play", {
+      position: room.position
+    });
+  });
+
+  socket.on("pause", position => {
+
+    const roomId = socket.data.roomId;
+
+    if (!roomId) return;
+
+    const room = getRoom(roomId);
+
+    room.position =
+      Number.isFinite(Number(position))
+        ? Number(position)
+        : getCurrentPosition(room);
+
+    room.playing = false;
+    room.updatedAt = Date.now();
+
+    io.to(roomId).emit("video-pause", {
+      position: room.position
+    });
+  });
+
+  socket.on("seek", position => {
+
+    const roomId = socket.data.roomId;
+
+    if (!roomId) return;
+
+    const room = getRoom(roomId);
+
+    room.position = Number(position) || 0;
+    room.updatedAt = Date.now();
+
+    io.to(roomId).emit("video-seek", {
+      position: room.position
+    });
+  });
+
+  socket.on("chat-message", message => {
+
+    const roomId = socket.data.roomId;
+
+    if (!roomId) return;
+
+    const name = socket.data.name || "სტუმარი";
+
+    message = String(message || "")
+      .trim()
+      .slice(0, 500);
+
+    if (!message) return;
+
+    io.to(roomId).emit("chat-message", {
+      name,
+      message,
+      time: new Date().toISOString()
+    });
+  });
+
+  socket.on("disconnect", () => {
+
+    const roomId = socket.data.roomId;
+
+    if (!roomId) return;
+
+    const room = rooms.get(roomId);
+
+    if (!room) return;
+
+    const name = socket.data.name || "სტუმარი";
+
+    room.users.delete(socket.id);
+
+    io.to(roomId).emit(
+      "users-updated",
+      getUsers(room)
+    );
+
+    io.to(roomId).emit(
+      "system-message",
+      `${name} გავიდა ოთახიდან 👋`
+    );
+
+    if (room.users.size === 0) {
+      rooms.delete(roomId);
+    }
+  });
+});
+
+server.listen(PORT, HOST, () => {
+  console.log(`MovieRoom running on ${HOST}:${PORT}`);
+});
